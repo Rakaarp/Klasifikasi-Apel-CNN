@@ -1,0 +1,47 @@
+imds = imageDatastore('Jeruk',...
+    'IncludeSubfolders',true,...
+    'LabelSource','foldernames');
+
+augmenter = imageDataAugmenter( ...
+    'RandXReflection',true, ...
+    'RandRotation',[-180 180],...
+    'RandXScale',[1 4], ...
+    'RandYReflection',true, ...
+    'RandYScale',[1 4])
+
+[imdsTrain,imdsTest] = splitEachLabel(imds,0.5,'randomize');
+
+imageSize = [64 64 3];
+datastore = augmentedImageDatastore(imageSize,imdsTrain,'DataAugmentation',augmenter)
+
+layers = [ ...
+    imageInputLayer(imageSize,'Name','input')  
+    convolution2dLayer(3,8,'Padding','same')
+    batchNormalizationLayer
+    reluLayer   
+    maxPooling2dLayer(2,'Stride',2)  
+    fullyConnectedLayer(2)
+    softmaxLayer
+    classificationLayer ];
+
+options = trainingOptions('sgdm', ...
+    'MaxEpochs',50,...
+    'InitialLearnRate',1e-4, ...
+    'Verbose',true, ...
+    'Plots','training-progress');
+
+net = trainNetwork(datastore,layers,options);
+analyzeNetwork(net)
+
+imdsTest_rsz = augmentedImageDatastore(imageSize,imdsTest,'DataAugmentation',augmenter)
+YPred = classify(net,imdsTest_rsz);
+YTest = imdsTest.Labels;
+accuracy = sum(YPred == YTest)/numel(YTest)
+
+figure
+I = imread('.\Jeruk\Busuk\Bucuk (3).JPG');
+I2= imresize(I,[64,64],'nearest');
+[Pred,scores] = classify(net,I2);
+scores = max(double(scores*100));
+imshow(I);
+title(join([string(Pred),'' ,scores ,'%']))
